@@ -30,22 +30,28 @@ cat OneList/res/values/strings.xml | grep CYWR
 
 ---
 
-### **Flag 2: `CYWR{hidden_in_debug_build}`**
+### **Flag 2: `CYWR{f0und_in_debug_build}`**
 **Difficulty:** Easy  
 **Location:** `core/common/src/debug/res/values/strings.xml`
 
 **Solution:**
 ```bash
+# The flag is Base64 encoded as: Q1lXUntmMHVuZF9pbl9kZWJ1Z19idWlsZH0=
+
 # Using jadx - look in debug resources
 jadx app-debug.apk
 # Navigate to Resources → core.common.debug → res/values/strings.xml
+# Look for debug_config string
 
 # Using apktool
 apktool d app-debug.apk
-find OneList/ -name "strings.xml" | xargs grep -l CYWR
+find OneList/ -name "strings.xml" | xargs grep -l debug_config
+
+# Decode Base64
+echo "Q1lXUntmMHVuZF9pbl9kZWJ1Z19idWlsZH0=" | base64 -d
 ```
 
-**Learning:** Debug builds often contain additional resources not present in release builds.
+**Learning:** Debug builds often contain encoded resources not present in release builds.
 
 ---
 
@@ -55,38 +61,60 @@ find OneList/ -name "strings.xml" | xargs grep -l CYWR
 
 **Solution:**
 ```bash
-# The flag is Base64 encoded as: Q1lXUnt0ZXN0X3RhZ3NfYXJlX3VzZWZ1bH0=
+# The flag is ROT13 encoded as: PLJE{grfg_gntf_ner_hfrshy}
 
 # Using jadx
 jadx app-debug.apk
 # Navigate to Source code → com.lolo.io.onelist.core.data.utils → TestTags
+# Find the InternalConfig constant and the getDecodedInternalConfig() function
 
-# Decode the Base64 string
-echo "Q1lXUnt0ZXN0X3RhZ3NfYXJlX3VzZWZ1bH0=" | base64 -d
+# Analyze the ROT13 decoding algorithm in getDecodedInternalConfig()
+# The function shows ROT13 transformation: ((char - 'A' + 13) % 26)
+
+# Decode ROT13
+echo "PLJE{grfg_gntf_ner_hfrshy}" | tr 'A-Za-z' 'N-ZA-Mn-za-m'
+
+# Alternative: Python ROT13
+python3 -c "import codecs; print(codecs.decode('PLJE{grfg_gntf_ner_hfrshy}', 'rot13'))"
 ```
 
-**Learning:** Utility classes often contain constants that may be encoded.
+**Learning:** Algorithm discovery - analyze the processing function to understand the encoding method.
 
 ---
 
-### **Flag 4: `CYWR{database_secrets_v2}`**
+### **Flag 4: `CYWR{m1gr4t10n_s3cr3ts}`**
 **Difficulty:** Medium  
 **Location:** `core/database/src/main/kotlin/com/lolo/io/onelist/core/database/OneListDatabase.kt`
 
 **Solution:**
 ```bash
-# The flag is ROT13 encoded as: PLJE{qngnonfr_frpergf_i2}
+# The flag is encoded with Base64→ROT13→Base64 chain
+# Encoded as: RDF5S0hhZ2daSnFsQVVEa1pUNXNwbUF3cHdBMHAzMD0=
 
 # Using jadx
 jadx app-debug.apk
 # Navigate to Source code → com.lolo.io.onelist.core.database → OneListDatabase
-# Look for migration comments
+# Find MIGRATION_SIGNATURE constant and validateMigrationSignature() function
 
-# Decode ROT13
-echo "PLJE{qngnonfr_frpergf_i2}" | tr 'A-Za-z' 'N-ZA-Mn-za-m'
+# Analyze the triple-decoding algorithm:
+# Step 1: Base64 decode
+# Step 2: ROT13 decode  
+# Step 3: Base64 decode again
+
+# Manual decoding:
+echo "RDF5S0hhZ2daSnFsQVVEa1pUNXNwbUF3cHdBMHAzMD0=" | base64 -d
+# Result: D1yKHaggZJqlAUDkZT5spmAwpwA0p30=
+
+# ROT13 decode
+echo "D1yKHaggZJqlAUDkZT5spmAwpwA0p30=" | tr 'A-Za-z' 'N-ZA-Mn-za-m'
+# Result: Q1lXUnttMWdyNHQxMG5fczNjcjN0c30=
+
+# Base64 decode final
+echo "Q1lXUnttMWdyNHQxMG5fczNjcjN0c30=" | base64 -d
+# Result: CYWR{m1gr4t10n_s3cr3ts}
 ```
 
-**Learning:** Database migration code can contain hidden information in comments.
+**Learning:** Multi-layer encoding chains require analyzing the processing algorithm step by step.
 
 ---
 
@@ -117,9 +145,9 @@ echo "435957527b6d616e69666573745f7065726d697373696f6e735f6d617474657d" | xxd -r
 
 ## 🏃 **Dynamic Analysis Flags (6-10)**
 
-### **Flag 6: `CYWR{shared_prefs_ftw}`**
+### **Flag 6: `CYWR{prefs_storage}`**
 **Difficulty:** Medium-Hard  
-**Location:** SharedPreferences (runtime storage)
+**Location:** SharedPreferences (runtime storage, XOR encrypted)
 
 **Solution:**
 ```bash
@@ -132,12 +160,16 @@ adb install app-debug.apk
 1. Create 3 lists (any names)
 2. Delete 2 of those lists
 
-# Check SharedPreferences
+# Check SharedPreferences (flag is XOR encrypted)
 adb shell
 cd /data/data/com.lolo.io.onelist.debug/shared_prefs/
-cat *.xml | grep CYWR
+cat *.xml
 
-# Alternative: Using Frida
+# The flag is generated dynamically using XOR encryption
+# Analyze generateFlag6() function in OneListRepositoryImpl.kt
+# Multi-byte XOR with package-name derived key
+
+# Alternative: Using Frida to intercept the decrypted result
 frida -U -l shared_prefs_monitor.js com.lolo.io.onelist.debug
 ```
 
@@ -159,9 +191,9 @@ Java.perform(function() {
 
 ---
 
-### **Flag 7: `CYWR{room_database_flag}`**
+### **Flag 7: `CYWR{room_e6_v64hfw4i}`**
 **Difficulty:** Hard  
-**Location:** Room Database (SQLite)
+**Location:** Room Database (SQLite, context-derived encryption)
 
 **Solution:**
 ```bash
@@ -175,12 +207,16 @@ Java.perform(function() {
 # Check the database
 adb shell
 cd /data/data/com.lolo.io.onelist.debug/databases/
-sqlite3 OneListDatabase
+sqlite3 onelist_database
 
-# Look for the flag
+# Look for the dynamically generated flag entry
 .tables
-SELECT * FROM itemList WHERE title LIKE '%CYWR%';
+SELECT * FROM itemList WHERE id = 999999;
 .quit
+
+# The flag is generated by generateFlag7() function
+# Uses hex-encoded XOR with context-derived keys (SDK version + package name)
+# Analyze the decryption algorithm in OneListRepositoryImpl.kt
 ```
 
 **Frida Script for Database Monitoring:**
@@ -245,9 +281,9 @@ Java.perform(function() {
 
 ---
 
-### **Flag 9: `CYWR{logcat_debugging_master}`**
+### **Flag 9: `CYWR{custom_polyalphabetic_cipher}`**
 **Difficulty:** Hard  
-**Location:** Android logcat (XOR encoded)
+**Location:** Android logcat (custom polyalphabetic cipher)
 
 **Solution:**
 ```bash
@@ -260,16 +296,16 @@ adb logcat | grep OneList_Debug &
 1. Go to the main screen
 2. Long-press the "1List" title 7 times
 
-# Look for XOR encoded output
-# The flag is XOR encoded with key 42
+# Look for encrypted output in logcat
+# The flag uses a custom polyalphabetic cipher with key rotation
 
-# Decode XOR (example Python)
-python3 -c "
-encoded = 'your_encoded_string_from_logcat'
-key = 42
-decoded = ''.join(chr(ord(c) ^ key) for c in encoded)
-print(decoded)
-"
+# Analyze generateFlag9() function in ListScreenViewModel.kt:
+# - Custom substitution cipher with encrypted data array
+# - Polyalphabetic substitution with rotating keys: [0x2A, 0x15, 0x33, 0x07, 0x1C]
+# - Position-based transformations for letters vs special characters
+
+# The encrypted data needs to be decrypted using the algorithm
+# Then XOR encoded with key 42 before logging
 ```
 
 **Frida Script for Log Monitoring:**
@@ -379,14 +415,14 @@ $ANDROID_HOME/build-tools/30.0.3/dx --dex --output=hidden_flag.dex HiddenFlag.cl
 ## 🏆 **Complete Flag List**
 
 1. `CYWR{welcome_to_onelist_ctf}`
-2. `CYWR{hidden_in_debug_build}`
+2. `CYWR{f0und_in_debug_build}`
 3. `CYWR{test_tags_are_useful}`
-4. `CYWR{database_secrets_v2}`
+4. `CYWR{m1gr4t10n_s3cr3ts}`
 5. `CYWR{manifest_permissions_matter}`
-6. `CYWR{shared_prefs_ftw}`
-7. `CYWR{room_database_flag}`
+6. `CYWR{prefs_storage}` *(XOR encrypted)*
+7. `CYWR{room_e6_v64hfw4i}` *(context-derived encryption)*
 8. `CYWR{dynamic_dex_loading_master}`
-9. `CYWR{logcat_debugging_master}`
+9. `CYWR{custom_polyalphabetic_cipher}` *(custom cipher)*
 10. `CYWR{crypto_master_final_XXXXXXXX}` *(device-specific hash)*
 
 ---
