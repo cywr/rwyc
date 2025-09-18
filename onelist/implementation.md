@@ -180,19 +180,19 @@ fun validateMigrationSignature(): String {
 
 **Implementation:**
 - **File:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/repository/OneListRepositoryImpl.kt`
-- **Lines:** 227-261
+- **Lines:** 230-261
 - **Trigger:** Create 3 lists, delete 2 lists
 - **Storage:** SharedPreferences
 
 **Code Structure:**
 ```kotlin
-private fun checkFlag6Condition() {
+private fun validateUserMetrics() {
     if (preferences.ctfListsCreated >= 3 && preferences.ctfListsDeleted >= 2) {
-        preferences.ctfFlag6 = generateFlag6()
+        preferences.ctfFlag6 = generateUserToken()
     }
 }
 
-private fun generateFlag6(): String {
+private fun generateUserToken(): String {
     val encryptedData = byteArrayOf(0x0b, 0x3f, 0x35, ...) // XOR encrypted
     val keyBase = context.packageName.hashCode()
     val xorKey = byteArrayOf(
@@ -206,14 +206,14 @@ private fun generateFlag6(): String {
 ```
 
 **Trigger Logic:**
-- **File:** Same file, lines 95-102, 122-147
-- **Methods:** `createList()`, `deleteList()`
+- **File:** Same file, lines 91-101, 151-167
+- **Methods:** `createList()`, `deleteList()` calling `validateUserMetrics()`
 - **Counters:** `ctfListsCreated`, `ctfListsDeleted`
 
 **Discovery Method:**
 1. Trigger condition through app usage
 2. Find flag in SharedPreferences
-3. Analyze generation algorithm
+3. Analyze `validateUserMetrics()` and `generateUserToken()` methods
 4. Reverse engineer XOR decryption
 
 **Modification Notes:**
@@ -225,47 +225,81 @@ private fun generateFlag6(): String {
 ---
 
 ### **Flag 7: `CYWR{room_e6_v64hfw4i}`**
-**Type:** Context-derived encryption, database storage  
+**Type:** Hex-encoded with multi-key XOR, database storage  
 **Difficulty:** Hard (45 minutes)
 
 **Implementation:**
 - **File:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/repository/OneListRepositoryImpl.kt`
-- **Lines:** 257-323
+- **Lines:** 263-288
 - **Trigger:** Create list "FLAG", add item "CYWR", mark done
 - **Storage:** Room database (special entry with ID 999999)
 
 **Code Structure:**
 ```kotlin
-private suspend fun checkFlag7Condition(itemList: ItemList) {
+private suspend fun validateListConfiguration(itemList: ItemList) {
     if (itemList.title.equals("FLAG", ignoreCase = true)) {
-        val cyvrItem = itemList.items.find { 
+        val specialItem = itemList.items.find { 
             it.title.equals("CYWR", ignoreCase = true) && it.done 
         }
-        if (cyvrItem != null) {
-            val flagList = ItemList(title = generateFlag7(), id = 999999L)
-            dao.upsert(flagList.toItemListEntity())
+        if (specialItem != null) {
+            val systemList = ItemList(title = generateSystemMarker(), id = 999999L)
+            dao.upsert(systemList.toItemListEntity())
         }
     }
 }
 
-private fun generateFlag7(): String {
-    val encryptedHex = "2f4e6d8a1c3b5e7f..." // Hex-encoded encrypted data
-    val seed = context.applicationInfo.targetSdkVersion + context.packageName.length
-    // Multi-key XOR with context-derived keys
+private fun generateSystemMarker(): String {
+    // Hex-encoded encrypted data
+    val encryptedHex = "765915677b305a6f2f6a65746a767401682442342b48"
+    
+    // Convert hex string to bytes
+    val encryptedBytes = encryptedHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+    
+    // Context-derived seed for key generation (normalize package name across builds)
+    val basePackage = context.packageName.replace(".debug", "").replace(".tst", "")
+    val seed = context.applicationInfo.targetSdkVersion + basePackage.length
+    
+    // Generate 3 different XOR keys from seed
+    val key1 = (seed and 0xFF).toByte()
+    val key2 = ((seed shr 8) and 0xFF).toByte()
+    val key3 = 0x42.toByte() // Static component
+    
+    // Apply rotating XOR decryption
+    val decrypted = encryptedBytes.mapIndexed { index, byte ->
+        val keyToUse = when (index % 3) {
+            0 -> key1
+            1 -> key2
+            else -> key3
+        }
+        (byte.toInt() xor keyToUse.toInt()).toChar()
+    }.joinToString("")
 }
 ```
 
+**Encryption Method:**
+1. **Step 1:** Flag is XOR encrypted with rotating 3-key pattern
+2. **Step 2:** Encrypted bytes are encoded as hex string
+3. **Step 3:** Keys are derived from app context (SDK version + package name length)
+
+**Trigger Logic:**
+- **File:** Same file, line 116
+- **Method:** `saveList()` calling `validateListConfiguration()`
+- **Trigger condition:** List title equals "FLAG" AND contains item "CYWR" marked as done
+
 **Discovery Method:**
 1. Trigger condition through specific list/item creation
-2. Find special database entry
-3. Analyze generation algorithm
-4. Reverse engineer context-derived decryption
+2. Find special database entry with ID 999999
+3. Analyze `validateListConfiguration()` and `generateSystemMarker()` methods
+4. Reverse engineer hex decoding + multi-key XOR decryption
 
 **Modification Notes:**
-- Update `encryptedHex` for new flag
-- Can change trigger list/item names
-- Keep context derivation for advanced dynamic analysis
-- Seed derivation can be modified but update algorithm accordingly
+- Update `encryptedHex` for new flag (XOR with 3-key rotation, then hex encode)
+- Can change trigger list/item names ("FLAG", "CYWR")
+- Key derivation uses context.applicationInfo.targetSdkVersion + basePackage.length (normalized)
+- Base package normalization: removes ".debug" and ".tst" suffixes for consistency
+- Static key component is 0x42 (can be changed)
+- Current values: targetSdk=34, basePackage="com.lolo.io.onelist" (19 chars), seed=53
+- To generate new encrypted hex: XOR flag with rotating keys (seed=53), then convert bytes to hex
 
 ---
 
