@@ -303,27 +303,89 @@ private fun generateSystemMarker(): String {
 
 ---
 
-### **Flag 8: `CYWR{dynamic_dex_loading_master}`**
-**Type:** DexClassLoader with external DEX  
+### **Flag 8: `CYWR{asset_steganography_master}`**
+**Type:** Asset steganography with AES encryption  
 **Difficulty:** Very Hard (60+ minutes)
 
 **Implementation:**
-- **File:** `/feature/settings/src/main/kotlin/com/lolo/io/onelist/feature/settings/SettingsScreen.kt`
-- **Lines:** Various (existing implementation)
+- **File:** `/feature/settings/src/main/kotlin/com/lolo/io/onelist/feature/settings/fragment/SettingsFragmentViewModel.kt`
+- **Lines:** 69-122
 - **Trigger:** Tap version number 10 times
-- **Method:** External DEX loading + reflection
+- **Method:** AES CBC/NoPadding encryption with key+IV extraction from image asset
+- **Asset:** `/app/src/main/assets/icon.jpg` (with appended key;IV data)
+- **Crypto:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/crypto/CryptoUtils.kt`
+
+**Code Structure:**
+```kotlin
+fun processSystemData() {
+    viewModelScope.launch {
+        try {
+            val result = extractDataFromAsset()
+            Log.d("OneList_System", "Process completed: $result")
+        } catch (e: Exception) {
+            Log.e("OneList_System", "Process failed", e)
+        }
+    }
+}
+
+private suspend fun extractDataFromAsset(): String = withContext(Dispatchers.IO) {
+    val encryptedData = "vZnAenSqeZZk0z69SDsvOBSggL6DAVnXV3LGGtqGlzk="
+    val (secretKey, initVector) = extractKeyAndIvFromResource()
+    val processedData = CryptoUtils.decryptWithKeyAndIv(encryptedData, secretKey, initVector)
+    return@withContext processedData
+}
+
+private fun extractKeyAndIvFromResource(): Pair<String, String> {
+    val inputStream = context.assets.open("icon.jpg")
+    val allBytes = inputStream.readBytes()
+    
+    // Key and IV are at the end, separated by semicolon
+    // Format: "base64_key;base64_iv"
+    val tailData = String(allBytes.takeLast(49).toByteArray()) // 24+1+24 = 49 chars
+    val parts = tailData.split(";")
+    
+    if (parts.size == 2) {
+        val encodedKey = parts[0]
+        val encodedIv = parts[1]
+        
+        val decodedKey = Base64.decode(encodedKey, Base64.DEFAULT)
+        val decodedIv = Base64.decode(encodedIv, Base64.DEFAULT)
+        
+        val secretKey = String(decodedKey)
+        val initVector = String(decodedIv)
+        
+        return Pair(secretKey, initVector)
+    } else {
+        return Pair("fallback_key", "fallback_iv")
+    }
+}
+```
+
+**Encryption Details:**
+- **Key:** `Thi$_1s_d4-WaaaY` (base64: `VGhpJF8xc19kNC1XYWFhWQ==`)
+- **IV:** `YaaaW-4d_s1_$ihT` (base64: `WWFhYVctNGRfczFfJGloVA==`)
+- **Algorithm:** AES CBC/NoPadding (16-byte key/IV, no padding)
+- **Encrypted Flag:** `vZnAenSqeZZk0z69SDsvOBSggL6DAVnXV3LGGtqGlzk=`
+- **Asset Data:** `VGhpJF8xc19kNC1XYWFhWQ==;WWFhYVctNGRfczFfJGloVA==` (appended to icon.jpg)
 
 **Discovery Method:**
-1. Trigger through UI interaction
-2. Monitor network/DEX loading
-3. Analyze fallback decryption
-4. Understand reflection usage
+1. Trigger through UI interaction (tap version number 10 times in settings)
+2. Monitor logcat for "OneList_System" outputs
+3. Reverse engineer `extractDataFromAsset()` method
+4. Analyze `extractKeyAndIvFromResource()` function
+5. Extract and analyze icon.jpg asset file
+6. Discover key;IV data at end of image (last 49 bytes)
+7. Decode base64 to get AES key and IV
+8. Implement AES CBC/NoPadding decryption
+9. Decrypt encrypted flag to get final result
 
 **Modification Notes:**
-- Update external DEX URL and content
-- Can change trigger count
-- Keep DexClassLoader for advanced technique education
-- Requires hosting external DEX file
+- To change encryption: Update key, IV, and re-encrypt flag using AES CBC/NoPadding
+- Asset format: Append `base64_key;base64_iv` to end of icon.jpg
+- Can change trigger count in SettingsFragment.kt
+- Update CryptoUtils.decryptWithKeyAndIv() for different crypto algorithms
+- Current key/IV lengths: 16 bytes each (perfect for AES-128)
+- Teaches: Asset manipulation, steganography, AES encryption, binary analysis
 
 ---
 
