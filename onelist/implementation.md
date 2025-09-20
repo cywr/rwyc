@@ -33,51 +33,104 @@ This document details the technical implementation of each flag in the OneList A
 
 ---
 
-### **Flag 2: `CYWR{f0und_in_debug_build}`**
-**Type:** Base64 encoded  
+### **Flag 2: `CYWR{debug_build_config_found}`**
+**Type:** Base64 encoded with debug build validation
 **Difficulty:** Easy (2 minutes)
 
 **Implementation:**
 - **File:** `/core/common/src/debug/res/values/strings.xml`
 - **Line:** 5
-- **Encoded:** `Q1lXUntmMHVuZF9pbl9kZWJ1Z19idWlsZH0=`
-- **Code:** `<string name="debug_config">Q1lXUntmMHVuZF9pbl9kZWJ1Z19idWlsZH0=</string>`
+- **Encoded:** `Q1lXUntkZWJ1Z19idWlsZF9jb25maWdfZm91bmR9`
+- **Code:** `<string name="debug_config">Q1lXUntkZWJ1Z19idWlsZF9jb25maWdfZm91bmR9</string>`
+
+**Usage:**
+- **File:** `/app/src/main/kotlin/com/lolo/io/onelist/MainActivityViewModel.kt`
+- **Lines:** 40-69
+- **Code:** `validateDebugEnvironment()` function checks debug build and decodes config
 
 **Discovery Method:**
 - Found only in debug build resources
+- Actually used in debug environment validation
 - Requires Base64 decoding
+- Only accessible when running debug build (.debug package suffix)
 
 **Modification Notes:**
 - To change flag: `echo -n "NEW_FLAG" | base64`
 - Keep in debug resources to teach build variant analysis
 - Maintain Base64 encoding for introduction to simple encoding
+- Flag is actually processed by debug validation code, making it meaningful
 
 ---
 
-### **Flag 3: `CYWR{test_tags_are_useful}`**
-**Type:** ROT13 with algorithm discovery  
+### **Flag 3: `CYWR{manifest_scope_analysis}`**
+**Type:** Hex encoded in AndroidManifest
+**Difficulty:** Easy (5 minutes)
+
+**Implementation:**
+- **File:** `/app/src/main/AndroidManifest.xml`
+- **Location:** meta-data tag
+- **Encoded:** `435957527b6d616e69666573745f73636f70655f616e616c797369737d`
+
+**Code:**
+```xml
+<meta-data
+    android:name="com.onelist.build.config"
+    android:value="435957527b6d616e69666573745f73636f70655f616e616c797369737d" />
+```
+
+**Discovery Method:**
+- Static analysis of AndroidManifest.xml
+- Hex decoding of meta-data value
+- Look for suspicious or non-standard meta-data entries
+
+**Modification Notes:**
+- To change flag: `echo -n "NEW_FLAG" | xxd -p | tr -d '\\n'`
+- Keep in manifest to teach Android manifest analysis
+- Removed obvious CTF indicators from meta-data name
+- Can change meta-data name but keep hex encoding
+
+---
+
+### **Flag 4: `CYWR{caesar_cipher_secrets}`**
+**Type:** Caesar cipher (ROT13) with algorithm discovery
 **Difficulty:** Easy-Medium (5 minutes)
 
 **Implementation:**
 - **File:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/utils/TestTags.kt`
-- **Encoded:** `PLJE{grfg_gntf_ner_hfrshy}`
-- **Lines:** 6, 10-29
+- **Encoded:** `PLJE{pnrfne_pvcure_frpergf}`
+- **Lines:** 6, 11-36
 
 **Code Structure:**
 ```kotlin
-const val InternalConfig = "PLJE{grfg_gntf_ner_hfrshy}"
+const val InternalConfig = "PLJE{pnrfne_pvcure_frpergf}"
 
+// Internal config processing - decodes Caesar cipher (ROT13) encoded values
+// Caesar cipher with ROT13 - preserves all non-alphabetic characters
 fun getDecodedInternalConfig(): String {
-    // ROT13 decoding algorithm
+    val encoded = InternalConfig
+    val decoded = StringBuilder()
+
+    // Apply ROT13 transformation - shifts alphabet by 13 positions
     for (char in encoded) {
         when {
             char in 'A'..'Z' -> {
+                // Uppercase letters: A-Z becomes N-Z,A-M
                 val shifted = ((char - 'A' + 13) % 26)
                 decoded.append(('A' + shifted).toChar())
             }
-            // ... rest of ROT13 implementation
+            char in 'a'..'z' -> {
+                // Lowercase letters: a-z becomes n-z,a-m
+                val shifted = ((char - 'a' + 13) % 26)
+                decoded.append(('a' + shifted).toChar())
+            }
+            else -> {
+                // Preserve all other characters (numbers, symbols, punctuation)
+                decoded.append(char)
+            }
         }
     }
+
+    return decoded.toString()
 }
 ```
 
@@ -89,41 +142,57 @@ fun getDecodedInternalConfig(): String {
 **Discovery Method:**
 1. Find encoded constant in TestTags
 2. Analyze `getDecodedInternalConfig()` function
-3. Reverse engineer ROT13 algorithm
-4. Apply decoding
+3. Reverse engineer Caesar cipher/ROT13 algorithm
+4. Apply decoding (preserves symbols unlike simple ROT13)
 
 **Modification Notes:**
-- To change flag: Apply ROT13 to new flag text
+- To change flag: Apply ROT13 to new flag text: `echo "flag" | tr 'A-Za-z' 'N-ZA-Mn-za-m'`
 - Keep processing function for algorithm discovery learning
+- Caesar cipher preserves all non-alphabetic characters (braces, underscores, etc.)
 - Can modify the encoding algorithm but update processing function accordingly
 
 ---
 
-### **Flag 4: `CYWR{m1gr4t10n_s3cr3ts}`**
-**Type:** Base64→ROT13→Base64 chain  
-**Difficulty:** Medium (10 minutes)
+### **Flag 5: `CYWR{hex_rot47_base64_chain}`**
+**Type:** Base64→ROT47→HEX encoding chain
+**Difficulty:** Medium-Hard (15 minutes)
 
 **Implementation:**
 - **File:** `/core/database/src/main/kotlin/com/lolo/io/onelist/core/database/OneListDatabase.kt`
-- **Encoded:** `RDF5S0hhZ2daSnFsQVVEa1pUNXNwbUF3cHdBMHAzMD0=`
-- **Lines:** 28, 31-60
+- **Encoded:** `22603d29263f45402b293937343e685f7d7335372a3e754b2b252a5f29617d402a283d4637226c6c`
+- **Lines:** 28, 31-57
 
 **Code Structure:**
 ```kotlin
-const val MIGRATION_SIGNATURE = "RDF5S0hhZ2daSnFsQVVEa1pUNXNwbUF3cHdBMHAzMD0="
+const val MIGRATION_SIGNATURE = "22603d29263f45402b293937343e685f7d7335372a3e754b2b252a5f29617d402a283d4637226c6c"
 
+// Migration signature validator - processes Base64→ROT47→HEX encoded signature
 fun validateMigrationSignature(): String {
-    // Step 1: Base64 decode
-    val step1 = String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
-    
-    // Step 2: ROT13 decode
+    val encoded = MIGRATION_SIGNATURE
+
+    // Step 1: Convert from hexadecimal to string
+    val step1 = try {
+        val bytes = encoded.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        String(bytes)
+    } catch (e: Exception) { return "invalid" }
+
+    // Step 2: Reverse ROT47 to get Base64 string
     val step2 = StringBuilder()
     for (char in step1) {
-        // ROT13 transformation
+        val asciiVal = char.code
+        if (asciiVal in 33..126) {
+            // Reverse ROT47: subtract 47 and wrap around printable ASCII range
+            val reversed = 33 + (asciiVal - 33 - 47 + 94) % 94
+            step2.append(reversed.toChar())
+        } else {
+            step2.append(char)
+        }
     }
-    
-    // Step 3: Base64 decode again
-    return String(android.util.Base64.decode(step2.toString(), android.util.Base64.DEFAULT))
+
+    // Step 3: Base64 decode to get final flag
+    return try {
+        String(android.util.Base64.decode(step2.toString(), android.util.Base64.DEFAULT))
+    } catch (e: Exception) { "invalid" }
 }
 ```
 
@@ -133,42 +202,21 @@ fun validateMigrationSignature(): String {
 - **Code:** `val signature = OneListDatabase.validateMigrationSignature()`
 
 **Discovery Method:**
-1. Find encoded constant in database class
+1. Find encoded constant in database class (valid hex string)
 2. Analyze `validateMigrationSignature()` function
-3. Reverse engineer 3-step decoding process
-4. Apply Base64→ROT13→Base64 chain
+3. Reverse engineer 3-step decoding process: HEX → ROT47 → Base64
+4. Convert hex to string to get ROT47'd data
+5. Apply ROT47 decoding to get Base64 string
+6. Decode Base64 to reveal final flag
 
 **Modification Notes:**
-- To create new encoding: `base64(rot13(base64(flag)))`
-- Keep 3-step process for multi-layer encoding education
+- To create new encoding: `hex(rot47(base64(flag)))`
+- ROT47 rotates all printable ASCII characters (33-126) by 47 positions
+- The stored signature is valid hex but decodes to seemingly random characters
+- Keep 3-step process for advanced multi-layer encoding education
 - Update both constant and processing function if changing algorithm
-
----
-
-### **Flag 5: `CYWR{manifest_permissions_matter}`**
-**Type:** Hex encoded in AndroidManifest  
-**Difficulty:** Medium (10 minutes)
-
-**Implementation:**
-- **File:** `/app/src/main/AndroidManifest.xml`
-- **Location:** meta-data tag
-- **Encoded:** `435957527b6d616e69666573745f7065726d697373696f6e735f6d617474657d`
-
-**Code:**
-```xml
-<meta-data
-    android:name="com.onelist.ctf.flag5"
-    android:value="435957527b6d616e69666573745f7065726d697373696f6e735f6d617474657d" />
-```
-
-**Discovery Method:**
-- Static analysis of AndroidManifest.xml
-- Hex decoding of meta-data value
-
-**Modification Notes:**
-- To change flag: `echo -n "NEW_FLAG" | xxd -p | tr -d '\n'`
-- Keep in manifest to teach Android manifest analysis
-- Can change meta-data name but keep hex encoding
+- More complex than ROT13 as it affects all symbols and numbers, not just letters
+- Base64 encoding ensures the flag is properly encoded before transformation
 
 ---
 
@@ -461,6 +509,7 @@ private fun generateFlag9(): String {
 ### **Encoding Changes:**
 - **Base64:** `echo -n "flag" | base64`
 - **ROT13:** `echo "flag" | tr 'A-Za-z' 'N-ZA-Mn-za-m'`
+- **ROT47:** Custom implementation needed (rotates all printable ASCII 33-126)
 - **Hex:** `echo -n "flag" | xxd -p | tr -d '\n'`
 - **XOR:** Custom implementation needed
 
@@ -493,9 +542,9 @@ private fun generateFlag9(): String {
 Static Flags:
 ├── app/src/main/res/values/strings.xml (Flag 1)
 ├── core/common/src/debug/res/values/strings.xml (Flag 2)
-├── core/data/src/main/kotlin/.../TestTags.kt (Flag 3)
-├── core/database/src/main/kotlin/.../OneListDatabase.kt (Flag 4)
-└── app/src/main/AndroidManifest.xml (Flag 5)
+├── app/src/main/AndroidManifest.xml (Flag 3)
+├── core/data/src/main/kotlin/.../TestTags.kt (Flag 4)
+└── core/database/src/main/kotlin/.../OneListDatabase.kt (Flag 5)
 
 Dynamic Flags:
 ├── core/data/src/main/kotlin/.../OneListRepositoryImpl.kt (Flags 6, 7)
@@ -504,8 +553,9 @@ Dynamic Flags:
 └── core/data/src/main/kotlin/.../CryptoUtils.kt (Flag 10)
 
 Usage/Triggers:
-├── feature/lists/src/main/kotlin/.../ListsScreen.kt (Flag 3 usage)
-├── core/database/src/main/kotlin/.../DaosModule.kt (Flag 4 usage)
+├── app/src/main/kotlin/.../MainActivityViewModel.kt (Flag 2 debug validation)
+├── feature/lists/src/main/kotlin/.../ListsScreen.kt (Flag 4 usage)
+├── core/database/src/main/kotlin/.../DaosModule.kt (Flag 5 usage)
 └── Various repository methods (Dynamic flag triggers)
 ```
 
