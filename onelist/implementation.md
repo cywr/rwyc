@@ -443,10 +443,12 @@ private fun extractKeyAndIvFromResource(): Pair<String, String> {
 
 **Implementation:**
 - **Main File:** `/feature/lists/src/main/kotlin/com/lolo/io/onelist/feature/lists/ListScreenViewModel.kt`
-- **Lines:** 232-406
-- **External DEX:** `/rwyc/onelist/external/classes.dex` (hosted on GitHub)
-- **Trigger:** Long-press app title 7 times
-- **Method:** Downloads DEX, loads with DexClassLoader, uses reflection to access hidden method
+- **Lines:** 249-357
+- **External DEX:** `/rwyc/onelist/external/classes.dex` (hosted on GitHub, 2424 bytes)
+- **DEX Build Script:** `/rwyc/onelist/build-dex.sh` (builds DEX from Java source)
+- **Manifest Entry:** AndroidManifest.xml declares service with `tools:ignore="MissingClass"`
+- **Trigger:** Long-press app title 7 times (method: `onTitleLongPress()`)
+- **Method:** Downloads DEX, loads with DexClassLoader, starts service with Intent
 
 **Architecture:**
 ```
@@ -459,35 +461,60 @@ Heavy Obfuscation Layer
     ↓ (Reflection for network checks, class loading)
     ↓
 External DEX Download (GitHub)
-    ↓ (https://raw.githubusercontent.com/cynychwr/ctfs/main/rwyc/onelist/external/classes.dex)
+    ↓ (https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex)
     ↓
 DexClassLoader + Reflection
     ↓ (Load com.onelist.external.NotificationService)
-    ↓ (Access getFlag() method)
+    ↓ (Access getData() method)
     ↓
-Flag Retrieved via Reflection
+Flag Retrieved via Reflection (Hex decoded at runtime)
 ```
 
 **External DEX Structure:**
-- **File:** `com.onelist.external.NotificationService`
+- **Source:** `/rwyc/onelist/src/com/onelist/external/NotificationService.java`
+- **Package:** `com.onelist.external.NotificationService`
 - **Purpose:** Simulates malware NotificationService behavior
-- **Flag Method:** `getFlag()` - Contains flag accessible via reflection
-- **Decoy Methods:** `getServiceStatus()`, `onNotificationPosted()`, `onNotificationRemoved()`
+- **Flag Method:** `getData()` - Hex-encoded flag decoded at runtime
+- **Hex Data:** `435957527b64796e616d69635f636f64655f6c6f6164696e675f6d616c776172655f77616e6e6162657d`
+- **Decoding:** Built-in hex-to-string conversion in `getData()` method
+- **Lifecycle Logging:** Constructor, onCreate(), onDestroy(), onNotificationPosted/Removed() with Tag "NotificationService"
+- **Service Methods:** Proper NotificationListenerService lifecycle implementation
 
-**Obfuscation Techniques:**
+**DEX Build Process:**
+```bash
+# Build script: /rwyc/onelist/build-dex.sh
+# 1. Creates _build directory (not temp)
+# 2. Compiles Java with Android SDK classpath
+# 3. Creates JAR from compiled classes
+# 4. Converts JAR to DEX using Android d8 tool
+# 5. Outputs to external/classes.dex (2424 bytes with logging)
+```
+
+**Stealth Obfuscation Techniques:**
 ```kotlin
-// Base64 encoded sensitive strings
-private val systemConfig = listOf(
-    "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2N5bnljaHdyL2N0ZnMv", // URL part 1
-    "bWFpbi9yd3ljL29uZWxpc3QvZXh0ZXJuYWwvY2xhc3Nlcy5kZXg=", // URL part 2 (classes.dex)
-    "Y29tLm9uZWxpc3QuZXh0ZXJuYWwuTm90aWZpY2F0aW9uU2VydmljZQ==", // Service class
-    "Z2V0RmxhZw==", // Flag method (getFlag)
-    "T25lTGlzdF9NYWx3YXJl" // Log tag
-)
+// XOR encrypted configuration data (KEY: 0x37)
+private val remoteConfig = byteArrayOf(
+    0x5f, 0x43, 0x43, 0x47, 0x44, 0xd, 0x18, 0x18, 0x45, 0x56, 0x40, 0x19, 0x50, 0x5e, 0x43, 0x5f,
+    0x42, 0x55, 0x42, 0x44, 0x52, 0x45, 0x54, 0x58, 0x59, 0x43, 0x52, 0x59, 0x43, 0x19, 0x54, 0x58,
+    0x5a, 0x18, 0x54, 0x4e, 0x40, 0x45, 0x18, 0x45, 0x40, 0x4e, 0x54, 0x18, 0x5a, 0x56, 0x5e, 0x59,
+    0x18, 0x58, 0x59, 0x52, 0x5b, 0x5e, 0x44, 0x43, 0x18, 0x52, 0x4f, 0x43, 0x52, 0x45, 0x59, 0x56,
+    0x5b, 0x18, 0x54, 0x5b, 0x56, 0x44, 0x44, 0x52, 0x44, 0x19, 0x53, 0x52, 0x4f
+) // URL: https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex
 
-// Heavy reflection for class loading
-val dexClassLoaderClass = Class.forName(
-    StringBuilder("dalvik.system.").append("DexClassLoader").toString()
+private val componentClass = byteArrayOf(
+    0x54, 0x58, 0x5a, 0x19, 0x58, 0x59, 0x52, 0x5b, 0x5e, 0x44, 0x43, 0x19, 0x52, 0x4f, 0x43, 0x52,
+    0x45, 0x59, 0x56, 0x5b, 0x19, 0x79, 0x58, 0x43, 0x5e, 0x51, 0x5e, 0x54, 0x56, 0x43, 0x5e, 0x58,
+    0x59, 0x64, 0x52, 0x45, 0x41, 0x5e, 0x54, 0x52
+) // Class: com.onelist.external.NotificationService
+
+// XOR decryption function
+private fun decryptConfig(data: ByteArray, key: Int = 0x37): String {
+    return String(data.map { (it.toInt() xor key).toChar() }.toCharArray())
+}
+
+// Service loading with proper Intent
+val serviceIntent = Intent(context, serviceClass)
+context.startService(serviceIntent)
 )
 
 // Network connectivity check via reflection
@@ -498,42 +525,55 @@ val connectivityClass = Class.forName(
 
 **Discovery Method:**
 1. **Static Analysis Clues:**
-   - AndroidManifest.xml declares `NotificationService` with BIND_NOTIFICATION_LISTENER_SERVICE permission
-   - Service class not found in static analysis (jadx, apktool)
-   - Indicates Dynamic Code Loading
+   - AndroidManifest.xml declares `com.onelist.external.NotificationService` with BIND_NOTIFICATION_LISTENER_SERVICE permission
+   - Service class not found in static analysis (jadx, apktool) - marked with `tools:ignore="MissingClass"`
+   - Indicates Dynamic Code Loading pattern
 
 2. **Dynamic Analysis Required:**
-   - Trigger via long-press app title 7 times
-   - Monitor network traffic for DEX download
-   - Monitor logcat for "OneList_Debug" and "OneList_Malware" tags
-   - File system monitoring for temporary DEX files in cache directory
+   - Trigger via long-press app title 7 times (method: `onTitleLongPress()`)
+   - Monitor network traffic for DEX download (stealth download to cache/updates/)
+   - Monitor file system for temporary DEX files (component_*.dat, then deleted)
+   - Monitor logcat for "NotificationService" tag to verify DEX loading
+   - Silent failures for stealth (no obvious debug output)
 
 3. **Advanced Analysis:**
-   - Reverse engineer obfuscated Base64 strings
-   - Understand DexClassLoader usage pattern
+   - Reverse engineer XOR-encrypted byte arrays (key: 0x37)
+   - Analyze stealth methods: `performSystemUpdate()`, `downloadSystemComponent()`, `initializeSystemService()`
+   - Understand realistic Service binding simulation
    - Extract and analyze downloaded DEX file
-   - Find flag method in NotificationService class
+   - Find flag in NotificationService class via hex decoding
 
 4. **Flag Extraction:**
-   - Download DEX file from GitHub URL: `https://raw.githubusercontent.com/cynychwr/ctfs/main/rwyc/onelist/external/classes.dex`
-   - Analyze with jadx/dex2jar: `jadx classes.dex`
-   - Find `com.onelist.external.NotificationService.getFlag()` method
+   - XOR decrypt `remoteConfig` to get URL: `https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex`
+   - XOR decrypt `componentClass` to get service: `com.onelist.external.NotificationService`
+   - Download and analyze DEX: `jadx classes.dex`
+   - Find `com.onelist.external.NotificationService.getData()` method
+   - Discover hex-encoded flag data: `435957527b64796e616d69635f636f64655f6c6f6164696e675f6d616c776172655f77616e6e6162657d`
+   - Decode hex to ASCII or understand the hex-to-string conversion logic
    - Extract flag: `CYWR{dynamic_code_loading_malware_wannabe}`
 
 **Security Educational Value:**
 - **DCL Detection:** Teaches how to identify dynamic code loading in Android malware
 - **Manifest Analysis:** Shows importance of correlating manifest with actual code
-- **Network Monitoring:** Demonstrates DEX download behavior
-- **Joker Malware Simulation:** Realistic NotificationListener malware pattern
-- **Advanced Obfuscation:** Multiple layers of hiding (Base64, reflection, string building)
+- **Network Monitoring:** Demonstrates stealth DEX download behavior
+- **XOR Encryption Analysis:** Real-world malware obfuscation technique
+- **Service Binding Simulation:** Realistic NotificationListener malware pattern
+- **Stealth Operations:** Silent failures, no debug logging, file cleanup
+- **Advanced Obfuscation:** Multiple layers of hiding (XOR, reflection, stealth naming)
 
 **Modification Notes:**
-- Update GitHub URL in Base64 encoded strings
-- Change service class name and method names
-- Modify obfuscation patterns (different encoding, reflection patterns)
-- Update DEX file content and hosting location
-- Can change trigger mechanism or count
-- Update external DEX with new flag content
+- Update GitHub URL in XOR encrypted `remoteConfig` (currently points to cywr/rwyc repository)
+- Change XOR encryption key (currently 0x37) for different obfuscation
+- Modify service class name in XOR encrypted `componentClass`
+- Update stealth method names: `onTitleLongPress()`, `performSystemUpdate()`, `downloadSystemComponent()`, `initializeSystemService()`
+- Change trigger mechanism or count (currently 7 long-presses)
+- Update external DEX with new flag content using build script
+- DEX build script at `/rwyc/onelist/build-dex.sh` for rebuilding external DEX
+- Hex-encoded flag requires hex-to-string conversion logic in DEX
+- Current hex: `435957527b64796e616d69635f636f64655f6c6f6164696e675f6d616c776172655f77616e6e6162657d`
+- Lifecycle logging uses "NotificationService" tag for verification
+- Silent failure behavior mimics real malware patterns
+- AndroidManifest service declaration with `tools:ignore="MissingClass"` for lint warnings
 
 ---
 
