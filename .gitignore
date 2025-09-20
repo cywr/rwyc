@@ -1,5 +1,9 @@
-### macOS ###
-# General
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# OS files
 .DS_Store
-.AppleDouble
-.LSOverride
+Thumbs.db

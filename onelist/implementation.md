@@ -437,47 +437,103 @@ private fun extractKeyAndIvFromResource(): Pair<String, String> {
 
 ---
 
-### **Flag 9: `CYWR{custom_polyalphabetic_cipher}`**
-**Type:** Custom polyalphabetic cipher, logcat output  
-**Difficulty:** Hard (60+ minutes)
+### **Flag 9: `CYWR{dynamic_code_loading_malware_wannabe}`**
+**Type:** Dynamic Code Loading (DCL) with external DEX, NotificationService simulation
+**Difficulty:** Expert (90+ minutes)
 
 **Implementation:**
-- **File:** `/feature/lists/src/main/kotlin/com/lolo/io/onelist/feature/lists/ListScreenViewModel.kt`
-- **Lines:** 226-271
+- **Main File:** `/feature/lists/src/main/kotlin/com/lolo/io/onelist/feature/lists/ListScreenViewModel.kt`
+- **Lines:** 232-406
+- **External DEX:** `/rwyc/onelist/external/classes.dex` (hosted on GitHub)
 - **Trigger:** Long-press app title 7 times
-- **Output:** Android logcat (XOR encoded)
+- **Method:** Downloads DEX, loads with DexClassLoader, uses reflection to access hidden method
 
-**Code Structure:**
+**Architecture:**
+```
+Main App (AndroidManifest.xml declares NotificationListener service)
+    ↓ (Service class not found in static analysis)
+    ↓ (Indicates Dynamic Code Loading)
+    ↓
+Heavy Obfuscation Layer
+    ↓ (Base64 encoded URLs, class names, method names)
+    ↓ (Reflection for network checks, class loading)
+    ↓
+External DEX Download (GitHub)
+    ↓ (https://raw.githubusercontent.com/cynychwr/ctfs/main/rwyc/onelist/external/classes.dex)
+    ↓
+DexClassLoader + Reflection
+    ↓ (Load com.onelist.external.NotificationService)
+    ↓ (Access getFlag() method)
+    ↓
+Flag Retrieved via Reflection
+```
+
+**External DEX Structure:**
+- **File:** `com.onelist.external.NotificationService`
+- **Purpose:** Simulates malware NotificationService behavior
+- **Flag Method:** `getFlag()` - Contains flag accessible via reflection
+- **Decoy Methods:** `getServiceStatus()`, `onNotificationPosted()`, `onNotificationRemoved()`
+
+**Obfuscation Techniques:**
 ```kotlin
-private var flag9TapCount = 0
+// Base64 encoded sensitive strings
+private val systemConfig = listOf(
+    "aHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL2N5bnljaHdyL2N0ZnMv", // URL part 1
+    "bWFpbi9yd3ljL29uZWxpc3QvZXh0ZXJuYWwvY2xhc3Nlcy5kZXg=", // URL part 2 (classes.dex)
+    "Y29tLm9uZWxpc3QuZXh0ZXJuYWwuTm90aWZpY2F0aW9uU2VydmljZQ==", // Service class
+    "Z2V0RmxhZw==", // Flag method (getFlag)
+    "T25lTGlzdF9NYWx3YXJl" // Log tag
+)
 
-fun triggerFlag9() {
-    flag9TapCount++
-    if (flag9TapCount >= 7) {
-        val flag = generateFlag9()
-        val encodedFlag = flag.map { (it.code xor 42).toChar() }.joinToString("")
-        Log.d("OneList_Debug", "System check: $encodedFlag")
-    }
-}
+// Heavy reflection for class loading
+val dexClassLoaderClass = Class.forName(
+    StringBuilder("dalvik.system.").append("DexClassLoader").toString()
+)
 
-private fun generateFlag9(): String {
-    val encryptedData = intArrayOf(0x4f, 0x5d, 0x53, ...) // Custom cipher
-    val keys = intArrayOf(0x2A, 0x15, 0x33, 0x07, 0x1C) // Rotating keys
-    // Polyalphabetic substitution with position-based transformations
-}
+// Network connectivity check via reflection
+val connectivityClass = Class.forName(
+    StringBuilder("android.net.").append("ConnectivityManager").toString()
+)
 ```
 
 **Discovery Method:**
-1. Trigger through UI interaction
-2. Monitor logcat output
-3. Analyze custom cipher algorithm
-4. Reverse engineer polyalphabetic decryption
+1. **Static Analysis Clues:**
+   - AndroidManifest.xml declares `NotificationService` with BIND_NOTIFICATION_LISTENER_SERVICE permission
+   - Service class not found in static analysis (jadx, apktool)
+   - Indicates Dynamic Code Loading
+
+2. **Dynamic Analysis Required:**
+   - Trigger via long-press app title 7 times
+   - Monitor network traffic for DEX download
+   - Monitor logcat for "OneList_Debug" and "OneList_Malware" tags
+   - File system monitoring for temporary DEX files in cache directory
+
+3. **Advanced Analysis:**
+   - Reverse engineer obfuscated Base64 strings
+   - Understand DexClassLoader usage pattern
+   - Extract and analyze downloaded DEX file
+   - Find flag method in NotificationService class
+
+4. **Flag Extraction:**
+   - Download DEX file from GitHub URL: `https://raw.githubusercontent.com/cynychwr/ctfs/main/rwyc/onelist/external/classes.dex`
+   - Analyze with jadx/dex2jar: `jadx classes.dex`
+   - Find `com.onelist.external.NotificationService.getFlag()` method
+   - Extract flag: `CYWR{dynamic_code_loading_malware_wannabe}`
+
+**Security Educational Value:**
+- **DCL Detection:** Teaches how to identify dynamic code loading in Android malware
+- **Manifest Analysis:** Shows importance of correlating manifest with actual code
+- **Network Monitoring:** Demonstrates DEX download behavior
+- **Joker Malware Simulation:** Realistic NotificationListener malware pattern
+- **Advanced Obfuscation:** Multiple layers of hiding (Base64, reflection, string building)
 
 **Modification Notes:**
-- Update `encryptedData` array for new flag
-- Can change trigger count or method
-- Keep custom cipher for cryptography education
-- Update both cipher data and key array for new flags
+- Update GitHub URL in Base64 encoded strings
+- Change service class name and method names
+- Modify obfuscation patterns (different encoding, reflection patterns)
+- Update DEX file content and hosting location
+- Can change trigger mechanism or count
+- Update external DEX with new flag content
 
 ---
 
