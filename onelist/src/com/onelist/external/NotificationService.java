@@ -8,14 +8,22 @@ import android.service.notification.StatusBarNotification;
  * This class contains hidden flag for reverse engineering analysis.
  */
 public class NotificationService extends NotificationListenerService {
-    private static final String FLAG = "CYWR{dynamic_code_loading_malware_wannabe}";
+    private static final String DATA = "435957527b64796e616d69635f636f64655f6c6f6164696e675f6d616c776172655f77616e6e6162657d";
 
     /**
      * Get the flag
      * @return The flag
      */
-    public String getFlag() {
-        return FLAG;
+    public String getData() {
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < DATA.length(); i += 2) {
+            String hexPair = DATA.substring(i, i + 2);
+            int decimal = Integer.parseInt(hexPair, 16);
+            result.append((char) decimal);
+        }
+        
+        return result.toString();
     }
 
     @Override

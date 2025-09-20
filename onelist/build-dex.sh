@@ -7,22 +7,23 @@ set -e  # Exit on any error
 
 echo "Building NotificationListener DEX file..."
 
-# Clean and create temp directory
-rm -rf temp 2>/dev/null || true
-mkdir -p temp
+# Clean and create build directory for compiled output
+rm -rf _build 2>/dev/null || true
+mkdir -p _build
 
-# Copy source files to temp directory
-cp -r src/* temp/
-
-# Navigate to temp directory
-cd temp
-
-# Compile Java source with Java 8 compatibility
+# Compile Java source with Android SDK directly from src
 echo "Compiling Java source..."
-javac -source 8 -target 8 com/onelist/external/NotificationService.java
+ANDROID_JAR="/Users/cynychwr/Library/Android/sdk/platforms/android-34/android.jar"
+if [ ! -f "$ANDROID_JAR" ]; then
+    echo "❌ Error: Android SDK not found at $ANDROID_JAR"
+    echo "Please install Android SDK or update the path"
+    exit 1
+fi
+javac -cp "$ANDROID_JAR" -source 8 -target 8 -d _build src/com/onelist/external/NotificationService.java
 
-# Create JAR file
+# Create JAR file from compiled classes
 echo "Creating JAR file..."
+cd _build
 jar cf notification_service.jar com/
 
 # Convert JAR to DEX using Android SDK d8 tool
@@ -42,8 +43,8 @@ else
     exit 1
 fi
 
-# Clean up temp directory
-rm -rf temp
+# Clean up build directory
+rm -rf _build
 
 echo "🎉 Build completed successfully!"
 echo ""
