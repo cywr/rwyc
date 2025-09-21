@@ -647,26 +647,111 @@ val methodName = AppEnvironment.resolveRuntimeProperty(0)
 
 ---
 
-### **Flag 10: `CYWR{crypto_master_final_XXXXXXXX}`**
-**Type:** AES with device-specific key derivation  
-**Difficulty:** Expert (60+ minutes)
+### **Flag 10: `CYWR{native_reverse_engineering}`**
+**Type:** Native C++ with image steganography and multi-key XOR
+**Difficulty:** Medium-Hard (45-60 minutes)
 
 **Implementation:**
-- **File:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/crypto/CryptoUtils.kt`
-- **Trigger:** Automatic after Flag 6 completion
-- **Method:** Device-specific key + AES encryption
+- **Native Module:** `/core/native/` with NDK/CMake build system
+- **JNI Interface:** `/core/native/src/main/kotlin/com/lolo/io/onelist/core/native/NativeCrypto.kt`
+- **C++ Engine:** `/core/native/src/main/cpp/native_crypto.cpp` and `/core/native/src/main/cpp/flag_engine.cpp`
+- **Trigger:** Automatic after Flag 6 completion (10 second delay)
+- **Method:** LSB steganography + native XOR decryption
+- **Assets:** `background.png` and `icon_large.png` with embedded 8-byte keys
+
+**Key Architecture:**
+- **Key Component 1:** Hidden in `app/src/main/assets/background.png` via LSB steganography
+- **Key Component 2:** Hidden in `app/src/main/assets/icon_large.png` via LSB steganography
+- **Key Component 3:** Hardcoded in native binary (`native_key[]` array)
+- **Combination:** XOR all three 8-byte components to create final decryption key
+- **Encryption:** XOR encrypted flag using combined key
+
+**Code Structure:**
+```cpp
+// Encrypted flag data (32 bytes)
+const unsigned char encrypted_flag[] = {
+    0x6f, 0x0e, 0xe2, 0x5d, 0x06, 0xe9, 0x69, 0x48, 0x45, 0x21, 0xd0, 0x50,
+    0x0f, 0xe2, 0x7e, 0x59, 0x5e, 0x24, 0xd0, 0x50, 0x18, 0xe9, 0x6f, 0x55,
+    0x42, 0x32, 0xd0, 0x7d, 0x14, 0xe9, 0x6f, 0x41
+};
+
+// Native key component (8 bytes)
+const unsigned char native_key[] = {
+    0x4e, 0x41, 0x54, 0x49, 0x56, 0x45, 0x43, 0x52  // "NATIVECR"
+};
+
+// Key combination and XOR decryption logic
+void combine_keys(unsigned char* combined_key) {
+    for (int i = 0; i < 8; i++) {
+        combined_key[i] = image_keys[0][i] ^ image_keys[1][i] ^ native_key[i];
+    }
+}
+```
+
+**Integration Points:**
+- **App.kt:** Native library loading and initialization after Flag 6 completion
+- **Build System:** NDK configuration in `core/native/build.gradle.kts` and `CMakeLists.txt`
+- **Assets:** Steganography images with 8-byte keys embedded via LSB method
 
 **Discovery Method:**
-1. Triggered automatically by Flag 6
-2. Monitor logcat for final output
-3. Analyze complex key derivation
-4. Understand AES implementation
+1. **Static Analysis Phase:**
+   - Find native library `libonelist_native.so` in APK `lib/` folder
+   - Discover `NativeCrypto` class and JNI method signatures in decompiled code
+   - Identify asset files `background.png` and `icon_large.png`
+   - Analyze App.kt for native library loading logic
+
+2. **Dynamic Analysis Phase:**
+   - Trigger Flag 6 completion to enable native processing
+   - Monitor logcat for "OneListApp", "NativeCrypto", and "FlagEngine" tags
+   - Observe 10-second delay, then 5-second additional delay before flag processing
+   - Native processing logs the decrypted flag directly to logcat
+
+3. **Native Reverse Engineering Phase:**
+   - Use Ghidra/IDA Pro/Radare2 to analyze `libonelist_native.so`
+   - Extract key components from images using steganography tools (LSB extraction)
+   - Discover encrypted flag data and native key component in binary
+   - Reverse engineer XOR combination and decryption algorithm
+
+4. **Flag Extraction Methods:**
+   - **Method A:** Monitor logcat after triggering native processing: `adb logcat | grep FlagEngine`
+   - **Method B:** Extract keys manually and replicate decryption in standalone tool
+   - **Method C:** Hook native functions with Frida to intercept flag during processing
+   - **Method D:** Static analysis of native binary to extract all components
+
+**Image Steganography Details:**
+- **Format:** PNG (lossless compression, preserves LSB data)
+- **Method:** Least Significant Bit (LSB) of red channel only
+- **Structure:** 8-bit length prefix + data bits
+- **Key Size:** 8 bytes (64 bits) per image
+- **Python Test Script:** `/rwyc/onelist/test_flag10_crypto.py` validates entire process
+
+**Current Key Values (from test run):**
+- **Background key:** `30a2a36656cba923`
+- **Icon_large key:** `52b442207d09e24d`
+- **Native key:** `4e41544956454352`
+- **Combined key:** `2c57b50f7d87083c`
+- **Encrypted flag:** `6f0ee25d06e969484521d0500fe27e595e24d05018e96f554232d07d14e96f41`
+
+**Educational Value:**
+- **Native Reverse Engineering:** Introduction to Android NDK/JNI analysis
+- **Image Steganography:** LSB extraction techniques and tools
+- **Multi-layer Cryptography:** Key combination via XOR operations
+- **Build System Understanding:** NDK/CMake configuration analysis
+- **Cross-language Analysis:** Java/Kotlin ↔ C++ debugging techniques
+
+**Tools Required:**
+- **Static Analysis:** Ghidra, IDA Pro, Radare2, objdump, readelf
+- **Steganography:** StegSolve, binwalk, custom LSB extraction tools
+- **Dynamic Analysis:** adb logcat, optional Frida for advanced hooking
+- **Image Processing:** Tools capable of LSB analysis (Python PIL, GIMP with plugins)
 
 **Modification Notes:**
-- Update AES encrypted data
-- Can change trigger condition
-- Keep device-specific derivation for expert-level challenge
-- Hash portion is dynamic based on device
+- **Regenerate Keys:** Run `test_flag10_crypto.py` to create new key components and images
+- **Update Native Code:** Modify `encrypted_flag[]` and `native_key[]` arrays in `flag_engine.cpp`
+- **Change Timing:** Adjust delays in App.kt (currently 10s + 5s)
+- **Modify Images:** Replace source images in `/rwyc/onelist/assets/` and regenerate
+- **Key Size:** Can change from 8 bytes, but update all components consistently
+- **Algorithm:** Can replace XOR with other operations, but maintain educational complexity
 
 ---
 
