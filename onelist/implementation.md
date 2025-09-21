@@ -228,39 +228,55 @@ fun validateMigrationSignature(): String {
 
 **Implementation:**
 - **File:** `/core/data/src/main/kotlin/com/lolo/io/onelist/core/data/repository/OneListRepositoryImpl.kt`
-- **Lines:** 230-261
+- **Lines:** 229-261
 - **Trigger:** Create 3 lists, delete 2 lists
 - **Storage:** SharedPreferences
 
 **Code Structure:**
 ```kotlin
 private fun validateUserMetrics() {
-    if (preferences.ctfListsCreated >= 3 && preferences.ctfListsDeleted >= 2) {
-        preferences.ctfFlag6 = generateUserToken()
+    // User engagement analytics threshold
+    if (preferences.userEngagementCreated >= 3 && preferences.userEngagementDeleted >= 2 && preferences.userToken == null) {
+        preferences.userToken = generateUserToken()
     }
 }
 
 private fun generateUserToken(): String {
-    val encryptedData = byteArrayOf(0x0b, 0x3f, 0x35, ...) // XOR encrypted
-    val keyBase = context.packageName.hashCode()
+    // Encrypted user engagement token
+    val encryptedData = byteArrayOf(
+        0x0b, 0x3f, 0x35, 0x30, 0x69, 0x01, 0x11, 0x04, 0x15, 0x04, 0x00, 0x6f,
+        0x01, 0x11, 0x0c, 0x15, 0x04, 0x06, 0x04, 0x6f, 0x0c, 0x04, 0x06, 0x15,
+        0x04, 0x11, 0x69
+    )
+
+    // Multi-byte XOR key derived from app context
+    val keyBase = try {
+        context.packageName.hashCode()
+    } catch (e: Exception) { 42 }
+
     val xorKey = byteArrayOf(
         (keyBase and 0xFF).toByte(),
         ((keyBase shr 8) and 0xFF).toByte(),
         ((keyBase shr 16) and 0xFF).toByte(),
-        0x73.toByte()
+        0x73.toByte() // Static component
     )
-    // Multi-byte XOR decryption
+
+    val decrypted = encryptedData.mapIndexed { index, byte ->
+        (byte.toInt() xor xorKey[index % xorKey.size].toInt()).toChar()
+    }.joinToString("")
+
+    return decrypted
 }
 ```
 
 **Trigger Logic:**
-- **File:** Same file, lines 91-101, 151-167
+- **File:** Same file, lines 98-99, 166-167
 - **Methods:** `createList()`, `deleteList()` calling `validateUserMetrics()`
-- **Counters:** `ctfListsCreated`, `ctfListsDeleted`
+- **Counters:** `userEngagementCreated`, `userEngagementDeleted`
 
 **Discovery Method:**
 1. Trigger condition through app usage
-2. Find flag in SharedPreferences
+2. Find flag in SharedPreferences (stored as `user_token`)
 3. Analyze `validateUserMetrics()` and `generateUserToken()` methods
 4. Reverse engineer XOR decryption
 
@@ -492,35 +508,79 @@ Flag Retrieved via Reflection (Hex decoded at runtime)
 
 **Stealth Obfuscation Techniques:**
 ```kotlin
-// XOR encrypted configuration data (KEY: 0x37)
-private val remoteConfig = byteArrayOf(
-    0x5f, 0x43, 0x43, 0x47, 0x44, 0xd, 0x18, 0x18, 0x45, 0x56, 0x40, 0x19, 0x50, 0x5e, 0x43, 0x5f,
-    0x42, 0x55, 0x42, 0x44, 0x52, 0x45, 0x54, 0x58, 0x59, 0x43, 0x52, 0x59, 0x43, 0x19, 0x54, 0x58,
-    0x5a, 0x18, 0x54, 0x4e, 0x40, 0x45, 0x18, 0x45, 0x40, 0x4e, 0x54, 0x18, 0x5a, 0x56, 0x5e, 0x59,
-    0x18, 0x58, 0x59, 0x52, 0x5b, 0x5e, 0x44, 0x43, 0x18, 0x52, 0x4f, 0x43, 0x52, 0x45, 0x59, 0x56,
-    0x5b, 0x18, 0x54, 0x5b, 0x56, 0x44, 0x44, 0x52, 0x44, 0x19, 0x53, 0x52, 0x4f
-) // URL: https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex
+// Advanced string obfuscation using AppEnvironment
+// Uses polyalphabetic substitution cipher (Vigenère-style) + string interleaving
 
-private val componentClass = byteArrayOf(
-    0x54, 0x58, 0x5a, 0x19, 0x58, 0x59, 0x52, 0x5b, 0x5e, 0x44, 0x43, 0x19, 0x52, 0x4f, 0x43, 0x52,
-    0x45, 0x59, 0x56, 0x5b, 0x19, 0x79, 0x58, 0x43, 0x5e, 0x51, 0x5e, 0x54, 0x56, 0x43, 0x5e, 0x58,
-    0x59, 0x64, 0x52, 0x45, 0x41, 0x5e, 0x54, 0x52
-) // Class: com.onelist.external.NotificationService
+// AppEnvironment.kt - Encrypted configuration properties
+internal object AppEnvironment {
+    // Encrypted configuration properties using advanced cipher techniques
+    private const val CONFIG_A = "dxnxoxmxwxsx.xtxqxqxlxxxqx.xDxrxaxTxzxixvxtxDxmxsxwxixd"
+    private const val CONFIG_B = "jxhxfxexgx:x/x/xkxbxhx.xgxlxvxvxgxqxixfxixexvxpxyxhxexqxvx..."
+    private const val CONFIG_C = "uxsxdx.xwxpxixmxuxyxfx.xwxbxkxzxzxpxexmx.xTxaxmxaxjxzxxxixvxmxpxzxYxqxkxnxmxtxz"
+    private const val CONFIG_D = "lxbxdxuxQxtxdxtxk"
+    private const val CONFIG_E = "ixsxfxSxoxgxe"
+    private const val CONFIG_F = "gxrxTxmxmxcxxxf"
+    private const val CONFIG_G = "nxrxz"
 
-// XOR decryption function
-private fun decryptConfig(data: ByteArray, key: Int = 0x37): String {
-    return String(data.map { (it.toInt() xor key).toChar() }.toCharArray())
+    // Security context parameters for decryption routines
+    private val securityContext1 = "android.system"
+    private val securityContext2 = "component.load"
+    private val securityContext3 = "service.mgmt"
+
+    // Multi-key decryption with Vigenère cipher
+    private fun decrypt(encryptedData: String, securityContext: String): String {
+        val result = StringBuilder()
+        val key = securityContext.lowercase()
+
+        for (i in encryptedData.indices) {
+            val encChar = encryptedData[i]
+            val keyChar = key[i % key.length]
+
+            when {
+                encChar.isLowerCase() -> {
+                    val shift = keyChar - 'a'
+                    val decrypted = ((encChar - 'a' - shift + 26) % 26) + 'a'.code
+                    result.append(decrypted.toChar())
+                }
+                // ... handles uppercase and symbols
+            }
+        }
+        return result.toString()
+    }
+
+    // String deinterleaving - extracts from interleaved pattern
+    private fun deinterleave(interleavedData: String): String {
+        val result = StringBuilder()
+        for (i in interleavedData.indices step 2) {
+            result.append(interleavedData[i])
+        }
+        return result.toString()
+    }
+
+    // Generic property access without revealing purpose
+    fun getProperty(configId: Char): String = when (configId) {
+        'A' -> resolveSecureProperty(CONFIG_A, securityContext1)
+        'B' -> resolveSecureProperty(CONFIG_B, securityContext2)
+        'C' -> resolveSecureProperty(CONFIG_C, securityContext3)
+        // ... more configs
+        else -> ""
+    }
+
+    fun resolveRuntimeProperty(propertyIndex: Int): String {
+        return when (propertyIndex) {
+            0 -> getProperty('D')  // Method names accessed by index
+            1 -> getProperty('E')
+            2 -> getProperty('F')
+            else -> ""
+        }
+    }
 }
 
-// Service loading with proper Intent
-val serviceIntent = Intent(context, serviceClass)
-context.startService(serviceIntent)
-)
-
-// Network connectivity check via reflection
-val connectivityClass = Class.forName(
-    StringBuilder("android.net.").append("ConnectivityManager").toString()
-)
+// Usage in ListScreenViewModel - no obvious purpose revealed
+val loaderClassString = AppEnvironment.getProperty('A')
+val serviceClassName = AppEnvironment.getProperty('C')
+val downloadUrl = AppEnvironment.getProperty('B')
+val methodName = AppEnvironment.resolveRuntimeProperty(0)
 ```
 
 **Discovery Method:**
@@ -537,15 +597,24 @@ val connectivityClass = Class.forName(
    - Silent failures for stealth (no obvious debug output)
 
 3. **Advanced Analysis:**
-   - Reverse engineer XOR-encrypted byte arrays (key: 0x37)
+   - Discover AppEnvironment class with generic encrypted properties
+   - Reverse engineer polyalphabetic substitution cipher (Vigenère-style)
+   - Understand string deinterleaving pattern (every 2nd character)
+   - Map CONFIG_A/B/C/D/E/F/G to actual purposes through usage analysis
+   - Identify security contexts: "android.system", "component.load", "service.mgmt"
+   - Correlate getProperty('B') usage to determine it's a URL
+   - Correlate getProperty('A') and getProperty('C') to class/service names
+   - Correlate resolveRuntimeProperty(0/1/2) to method names
    - Analyze stealth methods: `performSystemUpdate()`, `downloadSystemComponent()`, `initializeSystemService()`
    - Understand realistic Service binding simulation
    - Extract and analyze downloaded DEX file
    - Find flag in NotificationService class via hex decoding
 
 4. **Flag Extraction:**
-   - XOR decrypt `remoteConfig` to get URL: `https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex`
-   - XOR decrypt `componentClass` to get service: `com.onelist.external.NotificationService`
+   - Analyze AppEnvironment.getProperty('B') usage to identify download URL
+   - Reverse engineer string decryption: deinterleave then decrypt with Vigenère cipher
+   - Extract URL: `https://raw.githubusercontent.com/cywr/rwyc/main/onelist/external/classes.dex`
+   - Extract service class from AppEnvironment.getProperty('C'): `com.onelist.external.NotificationService`
    - Download and analyze DEX: `jadx classes.dex`
    - Find `com.onelist.external.NotificationService.getData()` method
    - Discover hex-encoded flag data: `435957527b64796e616d69635f636f64655f6c6f6164696e675f6d616c776172655f77616e6e6162657d`
@@ -556,15 +625,16 @@ val connectivityClass = Class.forName(
 - **DCL Detection:** Teaches how to identify dynamic code loading in Android malware
 - **Manifest Analysis:** Shows importance of correlating manifest with actual code
 - **Network Monitoring:** Demonstrates stealth DEX download behavior
-- **XOR Encryption Analysis:** Real-world malware obfuscation technique
+- **Polyalphabetic Cipher Analysis:** Advanced cryptographic obfuscation beyond simple XOR
 - **Service Binding Simulation:** Realistic NotificationListener malware pattern
 - **Stealth Operations:** Silent failures, no debug logging, file cleanup
 - **Advanced Obfuscation:** Multiple layers of hiding (XOR, reflection, stealth naming)
 
 **Modification Notes:**
-- Update GitHub URL in XOR encrypted `remoteConfig` (currently points to cywr/rwyc repository)
-- Change XOR encryption key (currently 0x37) for different obfuscation
-- Modify service class name in XOR encrypted `componentClass`
+- Update GitHub URL in AppEnvironment.CONFIG_B (polyalphabetic cipher + interleaving)
+- Change cipher security contexts: "android.system", "component.load", "service.mgmt" for different obfuscation
+- Modify service class name in AppEnvironment.CONFIG_C
+- Re-encrypt all CONFIG_A through CONFIG_G with new key phrases if changed
 - Update stealth method names: `onTitleLongPress()`, `performSystemUpdate()`, `downloadSystemComponent()`, `initializeSystemService()`
 - Change trigger mechanism or count (currently 7 long-presses)
 - Update external DEX with new flag content using build script
