@@ -694,11 +694,82 @@ val methodName = AppEnvironment.resolveRuntimeProperty(0)
 - Update solution documentation
 
 ### **Testing Changes:**
-1. Build APK: `./gradlew assembleDebug`
-2. Test static flags through decompilation
-3. Test dynamic flags through app interaction
-4. Verify encoding/decoding works correctly
-5. Update solution guide
+1. **Debug Build** (for testing): `./gradlew assembleDebug`
+2. **Release Build** (for CTF): `./gradlew assembleRelease`
+3. Test static flags through decompilation
+4. Test dynamic flags through app interaction
+5. Verify encoding/decoding works correctly
+6. Update solution guide
+
+### **Enhanced Build Configuration:**
+
+#### **Obfuscation Features:**
+- **R8/ProGuard**: Aggressive code minification and obfuscation
+- **Class Name Obfuscation**: All classes renamed to generic names (a.b.c...)
+- **Method Name Obfuscation**: All methods renamed to short names (a, b, c...)
+- **String Obfuscation**: Constant strings are obfuscated where possible
+- **Control Flow Obfuscation**: Code structure made harder to analyze
+- **Resource Shrinking**: Unused resources and debugging info removed
+- **Debug Symbol Removal**: Stack traces and variable names obfuscated
+
+#### **Build Commands:**
+```bash
+# Debug build - aggressive obfuscation enabled (non-debuggable)
+./gradlew assembleDebug
+
+# Release build - aggressive obfuscation enabled
+./gradlew assembleRelease
+
+# Clean build (recommended before building)
+./gradlew clean assembleDebug
+./gradlew clean assembleRelease
+```
+
+#### **Obfuscation Configuration Files:**
+- `app/proguard-rules.pro` - Basic ProGuard rules + library compatibility
+- `app/proguard-ctf.pro` - Specialized CTF obfuscation with maximum aggression
+- `app/build.gradle.kts` - Build configuration with enhanced minification for both debug and release
+
+#### **Enhanced Obfuscation Features:**
+- **7 Optimization Passes**: Maximum R8 optimization cycles
+- **Complete Package Flattening**: All packages renamed to single letters (a, b, c...)
+- **Aggressive Interface Merging**: `-mergeinterfacesaggressively`
+- **Method Overloading**: `-overloadaggressively` for maximum name confusion
+- **String Encryption**: Advanced polyalphabetic substitution + interleaving for Flag 9
+- **Parameter Name Removal**: All reflection debugging info stripped
+- **BuildConfig Obfuscation**: Debug fields removed, only VERSION_NAME preserved
+
+#### **What Gets Obfuscated:**
+- **Flag 9 AppEnvironment**: Fully obfuscated with encrypted string storage
+- **Reflection Strings**: DexClassLoader, NotificationService, method names (encrypted)
+- **SharedPreferences Keys**: user_token, user_engagement_* keys (stealth naming)
+- **Package Structure**: Completely flattened to random single-letter packages
+- **Line Numbers**: Removed to make stack trace analysis impossible
+- **Parameter Names**: All removed to make reflection analysis harder
+- **Class Names**: All renamed to meaningless single letters
+- **Method Names**: All renamed to a(), b(), c(), etc.
+
+#### **What's Preserved (Minimal):**
+- **Essential Android Framework**: Only Activity and Service base classes
+- **GSON Serialization**: Data classes for JSON persistence (minimal keeps)
+- **Jackson Libraries**: External library compatibility
+- **Essential BuildConfig**: Only VERSION_NAME field for app functionality
+
+#### **Analysis Impact:**
+- **Static Analysis**: All class/method names become meaningless single letters (a.b.c.d())
+- **Dynamic Analysis**: Stack traces completely obfuscated, no meaningful names
+- **String Analysis**: Flag 9 strings encrypted with custom cipher, no plaintext
+- **Package Analysis**: Completely flat structure, no logical organization visible
+- **Decompilation**: Jadx/apktool output extremely difficult to understand
+- **Reflection Analysis**: No parameter names, minimal debugging information
+- **Variable Names**: All local variables renamed to single letters
+
+#### **Debug vs Release Builds:**
+- **Both builds**: Apply identical aggressive obfuscation settings
+- **Debug build**: `isDebuggable = false` to enable full R8 obfuscation
+- **Application ID**: Debug uses `.debug` suffix, release uses production ID
+- **Crashlytics**: Disabled for debug builds, enabled for release
+- **Signing**: Debug uses debug keystore, release uses production signing (disabled for testing)
 
 ---
 
